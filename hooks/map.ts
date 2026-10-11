@@ -135,9 +135,9 @@ export function battleMap(s: ZhukovSnap, opusCalls: number): string {
   parts.push(`<rect x="0" y="0" width="${W}" height="44" fill="${C.ink}"/>`)
   parts.push(`<text x="16" y="28" font-size="17" font-weight="800" letter-spacing="2" fill="${C.paper}" font-family="Impact,'Arial Narrow',system-ui,sans-serif">OPERATION ${esc(cut(s.title.toUpperCase(), 40))}</text>`)
   parts.push(`<text x="${W - 16}" y="28" text-anchor="end" font-size="11" letter-spacing="1.4" fill="${s.state === 'done' ? '#9fd8a8' : s.state === 'running' ? '#a9c4ef' : '#f0b8a8'}" font-family="ui-monospace,Menlo,monospace">${esc(stateWord[s.state] ?? s.state.toUpperCase())}</text>`)
-  const by = H - 22
+  const by = H - 34
   parts.push(`<text x="16" y="${by}" font-size="11" fill="${C.ink}" font-family="ui-monospace,Menlo,monospace">OBJECTIVES ${pass}/${s.nodes.length}  ·  ARMOR ${armor}  ·  CASUALTIES ${deaths}${lost ? `  ·  UNITS LOST ${lost}` : ''}  ·  SUPPLY $${s.cost.toFixed(3)}  ·  HQ CALLS ${opusCalls}</text>`)
-  parts.push(`<text x="${W - 16}" y="${by}" text-anchor="end" font-size="10" fill="${C.faint}" font-family="ui-monospace,Menlo,monospace">☒ HAIKU  ⬭ SONNET  ★ OBJECTIVE</text>`)
+  parts.push(`<text x="16" y="${H - 14}" font-size="10" fill="${C.faint}" font-family="ui-monospace,Menlo,monospace">☒ INFANTRY = HAIKU   ⬭ ARMOR = SONNET   ★ OBJECTIVE   ✝ CASUALTY   — FLOT = FRONT LINE</text>`)
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${parts.join('')}</svg>`
 }
