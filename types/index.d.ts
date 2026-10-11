@@ -3,6 +3,7 @@ export type ZhukovNode = {
   title: string
   wave: number
   kind: string
+  deps: string[]
   tier: string
   state: string
   rounds: number

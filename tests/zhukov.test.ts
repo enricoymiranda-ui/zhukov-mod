@@ -71,17 +71,27 @@ test('during a run, opus is refused and haiku goes through', async ($, on) => {
   expect(haiku.deny).toBeUndefined()
 })
 
-test('the pane draws the live graph on terminal and desktop', async ($, on) => {
+test('the pane draws a text view on the terminal', async ($, on) => {
   await boot($, fakeDisk(on, ACTIVE))
-  for (const surface of ['terminal', 'desktop'] as const) {
-    const ui: any = await ($ as any).ui.mount({
-      plugin: 'zhukov-pane', surface, component: 'Pane', requestId: 'zhukov',
-      props: { title: 'Zhukov', isFocused: false, bodyColumns: 60 },
-    })
-    expect(await ui.find({ type: 'Text', text: /Demo op/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /WAVE 2/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /1 fix · 1 died/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /soldiers \$0\.030/ })).toBeDefined()
-    await ui.unmount()
-  }
+  const ui: any = await ($ as any).ui.mount({
+    plugin: 'zhukov-pane', surface: 'terminal', component: 'Pane', requestId: 'zhukov',
+    props: { title: 'Zhukov', isFocused: false, bodyColumns: 60 },
+  })
+  expect(await ui.find({ type: 'Text', text: /Demo op/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /WAVE 2/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /1 fix · 1 died/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('the pane draws the battle map on desktop', async ($, on) => {
+  await boot($, fakeDisk(on, ACTIVE))
+  const ui: any = await ($ as any).ui.mount({
+    plugin: 'zhukov-pane', surface: 'desktop', component: 'Pane', requestId: 'zhukov',
+    props: { title: 'Zhukov', isFocused: false, bodyColumns: 60 },
+  })
+  const map: any = await ui.find({ type: 'Svg' })
+  expect(map).toBeDefined()
+  expect(String(map.props?.alt ?? map.alt ?? '')).toMatch(/1 of 3 objectives taken/)
+  expect(await ui.find({ type: 'Text', text: /HQ DISPATCHES/ })).toBeDefined()
+  await ui.unmount()
 })

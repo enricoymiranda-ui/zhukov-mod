@@ -2,6 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { ZhukovNode, ZhukovSnap } from '../types'
+import { battleMap } from './map'
 
 // The Zhukov mod: follows the run named in ~/.zhukov/active (written by zhukov.mjs check/draw/run).
 // - a live pane of the task graph, read straight from the run's files (no model calls, $0 per update)
@@ -77,6 +78,7 @@ async function loadSnap($: EngineInterface): Promise<ZhukovSnap | null> {
       title: n.title ?? n.id,
       wave: depth.get(n.id) ?? 0,
       kind: n.kind ?? 'build',
+      deps: n.deps ?? [],
       tier: st.tier ?? n.tier ?? 'haiku',
       state: st.state ?? 'pending',
       rounds: st.rounds ?? 0,
@@ -182,6 +184,25 @@ export const register: Register = on => {
       )
     }
     const calls = await read($, opusCalls)
+    const els = $.ui.resolve(e)
+    if ((e.surface === 'desktop' || e.surface === 'mobile') && 'Svg' in els) {
+      const { Svg } = els as typeof els & { Svg: (p: { source: string; alt: string; isInteractive?: boolean }) => unknown }
+      const done = s.nodes.filter(n => n.state === 'pass').length
+      return (
+        <Box flexDirection="column">
+          <Svg source={battleMap(s, calls)} alt={`Battle map: ${s.title}, ${done} of ${s.nodes.length} objectives taken, ${s.state}`} isInteractive />
+          <Box flexDirection="column" marginTop={1}>
+            <Text dimColor>HQ DISPATCHES</Text>
+            {s.events.length === 0 && <Text dimColor>No dispatches yet.</Text>}
+            {s.events.map((line, i) => (
+              <Text key={`d${i}`} dimColor wrap="truncate-end">
+                {line}
+              </Text>
+            ))}
+          </Box>
+        </Box>
+      )
+    }
     const pass = s.nodes.filter(n => n.state === 'pass').length
     const sonnet = s.nodes.filter(n => n.tier === 'sonnet').length
     const byWave: ZhukovNode[][] = []
