@@ -1,6 +1,8 @@
-# zhukov mod
+# zhukov
 
-Live pane, status line and Agent-model guard for runs of the Zhukov skill.
+The Zhukov skill (an Opus Commander running cheap Haiku soldiers through a fault-tolerant task graph) plus a mod that shows each run live.
+
+- **Skill** — `skills/zhukov/SKILL.md`, invoked as `/zhukov`.
 
 - **Pane** — opens by itself when a Zhukov run starts; shows every soldier by wave, its model, state, fix rounds and deaths, plus the latest dispatches. Updates from the run's files every 2 s, with no model calls. `/zhukov-pane` reopens it.
 - **Status line** — pass count, soldier spend, and how many Opus calls the Commander has made during the run.
