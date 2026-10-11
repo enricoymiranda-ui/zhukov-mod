@@ -406,51 +406,96 @@ function preview() {
   waves.forEach((w, i) => console.log(`  wave ${i + 1}: ${w.map((n) => `${n.id}[${n.tier[0]}${n.loadBearing ? '!' : ''}]`).join(', ')}`));
   const big = [...nodes].sort((a, b) => b.readTok - a.readTok)[0];
   console.log(`  largest soldier start: ${big.id} ~${big.readTok + HARNESS_TOKENS} tokens (line ${TIER_LINE})`);
-  const est = nodes.reduce((a, n) => a + (n.tier === 'sonnet' ? 0.25 : 0.015) * 3, 0);
-  console.log(`  rough soldier cost: ~$${(est * 0.6).toFixed(2)}–$${(est * 1.6).toFixed(2)} (calibrate from costs.jsonl)`);
+  // calibrated 2026-10-11 from live runs: a Haiku node (make + check) ≈ $0.004–0.005; a fix round adds about the same;
+  // Sonnet ≈ 15–20× Haiku. Low = no fixes; high = one fix round everywhere. Big reads push both up.
+  const per = (n) => (n.tier === 'sonnet' ? 0.08 : 0.005) * (1 + n.readTok / 40000);
+  const lo = nodes.reduce((a, n) => a + per(n), 0), hi = nodes.reduce((a, n) => a + per(n) * 2.2, 0);
+  console.log(`  est. soldier cost: ~$${lo.toFixed(3)}–$${hi.toFixed(3)} (calibrated from live runs; costs.jsonl has the truth)`);
   if (warns.length) console.log('warnings:\n- ' + warns.join('\n- '));
+}
+// ---------- battle map (WW2 operations-map style), published by the Commander as an artifact ----------
+const MAPC = { paper: '#e8e0c4', paperDark: '#d9cfae', grid: '#c9bd98', ink: '#2a2a22', faint: '#7c745c', blue: '#2c5a9e', blueFill: '#b9cbe6',
+  green: '#2f7a45', greenFill: '#bfe0c3', red: '#b3261e', amber: '#b7791f', amberFill: '#f2dcae', grey: '#8d8672', greyFill: '#ddd5bb' };
+const PHASE = ['ALPHA', 'BRAVO', 'CHARLIE', 'DELTA', 'ECHO', 'FOXTROT', 'GOLF', 'HOTEL'];
+const LIVE = new Set(['making', 'made', 'checking', 'fixing']);
+const xesc = (s) => String(s).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+const xcut = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
+function unitLook(st) {
+  if (st.state === 'pass') return { stroke: MAPC.green, fill: MAPC.greenFill, word: 'OBJECTIVE TAKEN' };
+  if (st.state === 'failed') return { stroke: MAPC.red, fill: MAPC.paper, word: 'DESTROYED' };
+  if (st.state === 'flagged') return { stroke: MAPC.amber, fill: MAPC.amberFill, word: 'AWAITING ORDERS' };
+  if (st.state === 'blocked') return { stroke: MAPC.amber, fill: MAPC.amberFill, word: 'CUT OFF' };
+  if (LIVE.has(st.state)) return { stroke: MAPC.blue, fill: MAPC.blueFill, word: st.state === 'fixing' ? `REGROUPING · R${st.rounds}` : st.state === 'checking' ? 'UNDER INSPECTION' : 'ADVANCING' };
+  return { stroke: MAPC.grey, fill: MAPC.greyFill, word: 'IN RESERVE' };
+}
+function unitSvg(n, st, x, y) {
+  const L = unitLook(st), w = 58, h = 38, cx = x + w / 2, cy = y + h / 2;
+  let mark;
+  if (n.kind === 'integration') {
+    const pts = []; for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i * Math.PI) / 5, r = i % 2 ? 5.9 : 13; pts.push(`${(cx + r * Math.cos(a)).toFixed(1)},${(cy + r * Math.sin(a)).toFixed(1)}`); }
+    mark = `<polygon points="${pts.join(' ')}" fill="${L.stroke}" opacity="0.85"/>`;
+  } else if (st.tier === 'sonnet') mark = `<ellipse cx="${cx}" cy="${cy}" rx="18" ry="9" fill="none" stroke="${L.stroke}" stroke-width="2.2"/>`;
+  else mark = `<path d="M${x} ${y}L${x + w} ${y + h}M${x + w} ${y}L${x} ${y + h}" stroke="${L.stroke}" stroke-width="1.8"/>`;
+  const pulse = LIVE.has(st.state) ? `<rect x="${x - 4}" y="${y - 4}" width="${w + 8}" height="${h + 8}" rx="3" fill="none" stroke="${MAPC.blue}" stroke-width="2" class="pulse"/>` : '';
+  const dead = st.state === 'failed' ? `<path d="M${x - 6} ${y - 6}L${x + w + 6} ${y + h + 6}M${x + w + 6} ${y - 6}L${x - 6} ${y + h + 6}" stroke="${MAPC.red}" stroke-width="4" stroke-linecap="round"/>` : '';
+  const flag = st.state === 'pass' ? `<path d="M${x + w - 2} ${y - 16}v16M${x + w - 2} ${y - 16}h13l-4 4 4 4h-13" fill="${MAPC.green}" stroke="${MAPC.green}" stroke-width="1.5"/>` : '';
+  const cas = st.deaths ? `<text x="${x}" y="${y - 6}" font-size="10" fill="${MAPC.red}">${'✝'.repeat(Math.min(st.deaths, 3))}</text>` : '';
+  const tip = `${n.id} — ${n.title}\n${st.tier.toUpperCase()} · ${L.word}${st.rounds ? ` · ${st.rounds} fix round(s)` : ''}${st.deaths ? ` · ${st.deaths} died` : ''}`;
+  return `<g><title>${xesc(tip)}</title>${pulse}<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${L.fill}" stroke="${L.stroke}" stroke-width="2.4"${st.state === 'pending' ? ' stroke-dasharray="5 3"' : ''}/>${mark}${dead}${flag}${cas}
+<text x="${cx}" y="${y + h + 15}" text-anchor="middle" font-size="12" font-weight="700" fill="${MAPC.ink}">${xesc(xcut(n.id.toUpperCase(), 16))}</text>
+<text x="${cx}" y="${y + h + 28}" text-anchor="middle" font-size="9.5" letter-spacing="0.6" fill="${L.stroke}">${xesc(L.word)}</text></g>`;
+}
+function mapSvg(s) {
+  const COL = 190, ROW = 92, PADX = 46, TOP = 88, BOTTOM = 64;
+  const rows = Math.max(1, ...waves.map((w) => w.length)), W = PADX * 2 + Math.max(1, waves.length) * COL, H = TOP + rows * ROW + BOTTOM;
+  const pos = new Map();
+  waves.forEach((w, c) => { const y0 = TOP + (rows * ROW - w.length * ROW) / 2; w.forEach((n, r) => pos.set(n.id, { x: PADX + c * COL + (COL - 58) / 2, y: y0 + r * ROW + 10 })); });
+  const P = [`<rect width="${W}" height="${H}" fill="${MAPC.paper}"/>`];
+  for (let gx = 0; gx < W; gx += 40) P.push(`<path d="M${gx} 0V${H}" stroke="${MAPC.grid}" stroke-width="0.6"/>`);
+  for (let gy = 0; gy < H; gy += 40) P.push(`<path d="M0 ${gy}H${W}" stroke="${MAPC.grid}" stroke-width="0.6"/>`);
+  P.push(`<path d="M0 ${H * 0.72} C ${W * 0.25} ${H * 0.6}, ${W * 0.5} ${H * 0.9}, ${W} ${H * 0.68}" fill="none" stroke="${MAPC.paperDark}" stroke-width="10" opacity="0.7"/>`);
+  waves.forEach((_, c) => { const x = PADX + c * COL; P.push(`<path d="M${x} ${TOP - 18}V${TOP + rows * ROW}" stroke="${MAPC.faint}" stroke-width="1.2" stroke-dasharray="7 5"/><text x="${x + 6}" y="${TOP - 24}" font-size="10" letter-spacing="1.2" fill="${MAPC.faint}">PL ${PHASE[c] ?? c + 1}</text>`); });
+  let taken = -1; for (let c = 0; c < waves.length; c++) { if (waves[c].length && waves[c].every((n) => s[n.id].state === 'pass')) taken = c; else break; }
+  if (taken >= 0) { const fx = PADX + (taken + 1) * COL - 8; let d = `M${fx} ${TOP - 10}`; for (let y = TOP - 10; y < TOP + rows * ROW; y += 16) d += ` q ${y % 32 ? 7 : -7} 8 0 16`;
+    P.push(`<path d="${d}" fill="none" stroke="${MAPC.red}" stroke-width="3"/><text x="${fx + 6}" y="${TOP + rows * ROW + 14}" font-size="10" font-weight="700" fill="${MAPC.red}">FLOT</text>`); }
+  for (const n of nodes) { const b = pos.get(n.id); for (const dId of n.deps) { const a = pos.get(dId); if (!a || !b) continue;
+    const x1 = a.x + 62, y1 = a.y + 19, x2 = b.x - 10, y2 = b.y + 19, mx = (x1 + x2) / 2, st = s[n.id].state, live = LIVE.has(st);
+    const col = st === 'pass' ? MAPC.green : st === 'failed' || st === 'blocked' ? MAPC.red : live ? MAPC.blue : MAPC.grey;
+    P.push(`<path d="M${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}" fill="none" stroke="${col}" stroke-width="7" stroke-linecap="round" opacity="0.28"/><path d="M${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}" fill="none" stroke="${col}" stroke-width="2.2"${live ? ' stroke-dasharray="9 6" class="march"' : ''}/><path d="M${x2 + 9} ${y2} l -13 -7 v 14 z" fill="${col}"/>`); } }
+  for (const n of nodes) { const p = pos.get(n.id); P.push(unitSvg(n, s[n.id], p.x, p.y)); }
+  const c = costs(), pass = nodes.filter((n) => s[n.id].state === 'pass').length, deaths = nodes.reduce((a, n) => a + (s[n.id].deaths || 0), 0);
+  const lost = nodes.filter((n) => s[n.id].state === 'failed').length, armor = nodes.filter((n) => s[n.id].tier === 'sonnet').length;
+  const word = { running: 'OFFENSIVE IN PROGRESS', done: 'ALL OBJECTIVES TAKEN', 'needs-commander': 'HALTED — ORDERS NEEDED', 'runner-died': 'COMMS LOST', idle: 'PLANNING' }[s._run.state] ?? s._run.state.toUpperCase();
+  P.push(`<rect x="0" y="0" width="${W}" height="44" fill="${MAPC.ink}"/><text x="16" y="28" font-size="17" font-weight="800" letter-spacing="2" fill="${MAPC.paper}" font-family="Impact,'Arial Narrow',system-ui,sans-serif">OPERATION ${xesc(xcut((plan.title || 'ZHUKOV').toUpperCase(), 40))}</text><text x="${W - 16}" y="28" text-anchor="end" font-size="11" letter-spacing="1.4" fill="${s._run.state === 'done' ? '#9fd8a8' : s._run.state === 'running' ? '#a9c4ef' : '#f0b8a8'}">${xesc(word)}</text>`);
+  P.push(`<text x="16" y="${H - 34}" font-size="11" fill="${MAPC.ink}">OBJECTIVES ${pass}/${nodes.length}  ·  ARMOR ${armor}  ·  CASUALTIES ${deaths}${lost ? `  ·  UNITS LOST ${lost}` : ''}  ·  SUPPLY $${c.total.toFixed(3)}</text><text x="16" y="${H - 14}" font-size="10" fill="${MAPC.faint}">☒ INFANTRY = HAIKU   ⬭ ARMOR = SONNET   ★ OBJECTIVE   ✝ CASUALTY   — FLOT = FRONT LINE</text>`);
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="ui-monospace,Menlo,monospace" role="img" aria-label="Battle map: ${pass} of ${nodes.length} objectives taken">${P.join('')}</svg>`;
 }
 function draw(quiet) {
   const s = S || load();
-  const NW = 200, NH = 70, GX = 70, GY = 24, PAD = 24, HEAD = 44;
-  const colH = Math.max(...waves.map((w) => w.length));
-  const W = PAD * 2 + waves.length * NW + (waves.length - 1) * GX, H = HEAD + PAD * 2 + colH * NH + (colH - 1) * GY;
-  const pos = new Map();
-  waves.forEach((w, c) => { const ch = w.length * NH + (w.length - 1) * GY, y0 = HEAD + PAD + (colH * NH + (colH - 1) * GY - ch) / 2; w.forEach((n, r) => pos.set(n.id, { x: PAD + c * (NW + GX), y: y0 + r * (NH + GY) })); });
-  const esc = (x) => String(x).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
-  const tr = (x, k) => (x.length > k ? x.slice(0, k - 1) + '…' : x);
-  let edges = '', boxes = '', heads = '';
-  for (const n of nodes) for (const d of n.deps) { const a = pos.get(d), b = pos.get(n.id), x1 = a.x + NW, y1 = a.y + NH / 2, x2 = b.x, y2 = b.y + NH / 2, mx = (x1 + x2) / 2; edges += `<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2 - 6},${y2}" class="edge" marker-end="url(#arr)"/>`; }
-  for (const n of nodes) {
-    const p = pos.get(n.id), st = s[n.id], tier = st.tier;
-    boxes += `<g class="node s-${st.state} ${n.kind === 'integration' ? 'integ' : ''}" transform="translate(${p.x},${p.y})"><rect width="${NW}" height="${NH}" rx="8"/><rect class="tier t-${tier}" x="${NW - 62}" y="8" width="54" height="16" rx="8"/><text x="${NW - 35}" y="20" class="tt" text-anchor="middle">${tier}</text><text x="12" y="22" class="t">${esc(tr(n.title, 18))}</text><text x="12" y="41" class="id">${esc(n.id)}${n.loadBearing ? ' · load-bearing' : ''}</text><text x="12" y="59" class="st">${esc(st.state)}${st.rounds ? ` · ${st.rounds} fix` : ''}${st.deaths ? ` · ${st.deaths} died` : ''}</text></g>`;
-  }
-  waves.forEach((w, c) => { heads += `<text x="${PAD + c * (NW + GX) + NW / 2}" y="${HEAD - 8}" class="wave" text-anchor="middle">wave ${c + 1} · ${w.length} parallel</text>`; });
-  const c = costs(), done = nodes.filter((n) => s[n.id].state === 'pass').length;
-  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Zhukov Battle Plan</title><style>
-:root{--bg:#f7f6f2;--fg:#1d1f1c;--mut:#6b6f69;--card:#fff;--line:#c8ccc5;--pend:#9a9e98;--run:#2f6fd0;--pass:#2a8a55;--fail:#c43d3d;--blk:#b8860b;--hk:#3b7a57;--sn:#7a4bc4}
-@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#131512;--fg:#e8ebe6;--mut:#8d928b;--card:#1c1f1b;--line:#3b403a;--pend:#7b8079;--run:#6aa0ff;--pass:#4fbf7f;--fail:#ff7b7b;--blk:#e0b44a;--hk:#5fae82;--sn:#b38cf2}}
-:root[data-theme=dark]{--bg:#131512;--fg:#e8ebe6;--mut:#8d928b;--card:#1c1f1b;--line:#3b403a;--pend:#7b8079;--run:#6aa0ff;--pass:#4fbf7f;--fail:#ff7b7b;--blk:#e0b44a;--hk:#5fae82;--sn:#b38cf2}
-body{margin:0;background:var(--bg);color:var(--fg);font:14px system-ui,sans-serif}.wrap{padding:16px}h1{font-size:18px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 12px}
-.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--card)}.edge{fill:none;stroke:var(--line);stroke-width:1.6}
-.node>rect:first-child{fill:var(--card);stroke:var(--pend);stroke-width:2}.t{fill:var(--fg);font-weight:600;font-size:13px}.id{fill:var(--mut);font-size:11px}.st{font-size:11px;fill:var(--pend)}
-.tier{stroke:none}.t-haiku{fill:var(--hk)}.t-sonnet{fill:var(--sn)}.tt{fill:#fff;font-size:10px;font-weight:600}
-.s-making>rect:first-child,.s-made>rect:first-child,.s-checking>rect:first-child,.s-fixing>rect:first-child{stroke:var(--run)}.s-making .st,.s-made .st,.s-checking .st,.s-fixing .st{fill:var(--run)}
-.s-pass>rect:first-child{stroke:var(--pass)}.s-pass .st{fill:var(--pass)}.s-failed>rect:first-child,.s-flagged>rect:first-child{stroke:var(--fail)}.s-failed .st,.s-flagged .st{fill:var(--fail)}
-.s-blocked>rect:first-child{stroke:var(--blk)}.s-blocked .st{fill:var(--blk)}.integ>rect:first-child{stroke-dasharray:6 3}.wave{fill:var(--mut);font-size:11px}
-.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--mut);font-size:12px}.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
-</style></head><body><div class="wrap"><h1>${esc(plan.title || 'Battle plan')}</h1>
-<p class="sub">${nodes.length} soldiers · ${waves.length} waves · ${nodes.filter((n) => s[n.id].tier === 'sonnet').length} on Sonnet · ${done}/${nodes.length} passed · soldiers $${c.total.toFixed(2)} · run ${esc(s._run.state)}</p>
-<div class="scroll"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Task graph"><defs><marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--line)"/></marker></defs>${heads}${edges}${boxes}</svg></div>
-<div class="legend"><span><i style="background:var(--hk)"></i>haiku</span><span><i style="background:var(--sn)"></i>sonnet</span><span><i style="background:var(--run)"></i>in progress</span><span><i style="background:var(--pass)"></i>passed</span><span><i style="background:var(--fail)"></i>failed / flagged</span><span><i style="background:var(--blk)"></i>blocked</span><span>dashed = integration</span></div></div></body></html>`;
+  const evs = existsSync(P('events.log')) ? readFileSync(P('events.log'), 'utf8').trim().split('\n').filter(Boolean).slice(-10) : [];
+  const html = `<title>Operation ${xesc(xcut(plan.title || 'Zhukov', 40))}</title>
+<style>
+:root{--bg:#1b1c18;--fg:#e8e0c4;--mut:#a39b80;--line:#3a3a32}
+body{margin:0;background:var(--bg);color:var(--fg);font:13px ui-monospace,Menlo,monospace}
+.wrap{padding-inline:16px;padding-block:16px 24px;max-width:1400px;margin:0 auto;display:grid;gap:12px}
+.map{overflow-x:auto;border:1px solid var(--line);border-radius:6px;width:fit-content;max-width:100%}
+.map svg{display:block}
+.pulse{animation:p 1.6s ease-in-out infinite}@keyframes p{50%{opacity:.15}}
+.march{animation:m .9s linear infinite}@keyframes m{to{stroke-dashoffset:-30}}
+@media (prefers-reduced-motion:reduce){.pulse,.march{animation:none}}
+h2{font-size:11px;letter-spacing:.14em;color:var(--mut);margin:0;font-weight:600}
+pre{margin:0;white-space:pre-wrap;color:var(--mut);line-height:1.6;min-width:0}
+</style>
+<div class="wrap">
+<div class="map">${mapSvg(s)}</div>
+<h2>HQ DISPATCHES</h2>
+<pre>${xesc(evs.join('\n')) || 'No dispatches yet.'}</pre>
+</div>`;
   writeFileSync(P('graph.html'), html);
-  if (!quiet) console.log(`wrote ${P('graph.html')}`);
+  if (!quiet) console.log(`wrote ${P('graph.html')} — publish it as an artifact (same file path every time keeps one URL)`);
 }
 
 // ======================= commands =======================
-// ~/.zhukov/active names the run the Zhukov mod shows (pane + status line) and guards.
-function markActive() { try { const h = process.env.HOME; if (h) { mkdirSync(join(h, '.zhukov'), { recursive: true }); writeFileSync(join(h, '.zhukov', 'active'), run + '\n'); } } catch {} }
-if (['check', 'draw', 'run'].includes(cmd)) markActive();
 for (const d of ['receipts', 'verdicts', 'logs']) mkdirSync(P(d), { recursive: true });
 const alive = (pid) => { try { process.kill(pid, 0); return true; } catch { return false; } };
 if (cmd === 'check') preview();
