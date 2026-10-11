@@ -1,0 +1,5 @@
+{
+  "name": "zhukov-mods",
+  "owner": { "name": "enricoymiranda-ui" },
+  "plugins": [{ "name": "zhukov", "source": "./" }]
+}

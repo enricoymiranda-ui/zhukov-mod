@@ -1,0 +1,1 @@
+{ "name": "zhukov", "version": "0.1.0", "description": "Live pane, status line and Agent-model guard for Zhukov runs", "types": "./types/index.d.ts" }
