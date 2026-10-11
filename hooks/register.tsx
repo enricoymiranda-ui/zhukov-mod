@@ -12,9 +12,9 @@ const PANE = 'zhukov'
 const POLL_MS = 2000
 const STALE_MS = 3 * 60 * 60 * 1000
 
-const snap = atom({ plugin: 'zhukov', key: 'snap' } as const, null)
-const opusCalls = atom({ plugin: 'zhukov', key: 'opusCalls' } as const, 0)
-const runKey = atom({ plugin: 'zhukov', key: 'runKey' } as const, '')
+const snap = atom({ plugin: 'zhukov-pane', key: 'snap' } as const, null)
+const opusCalls = atom({ plugin: 'zhukov-pane', key: 'opusCalls' } as const, 0)
+const runKey = atom({ plugin: 'zhukov-pane', key: 'runKey' } as const, '')
 
 type Plan = { title?: string; nodes?: { id: string; title?: string; deps?: string[]; kind?: string; tier?: string }[] }
 type NodeStatus = { state?: string; tier?: string; rounds?: number; deaths?: number }
@@ -166,7 +166,7 @@ export const register: Register = on => {
     if (e.model === 'haiku' || e.model === 'sonnet' || e.subagent_type === 'fork') return next(e)
     if (!(await read($, snap))) return next(e)
     return {
-      deny: `zhukov: a Zhukov run is active, so every Agent call must set model "haiku" or "sonnet" (this one was ${e.model ? `"${e.model}"` : 'unset, which inherits Opus'}). Prefer \`zhukov.mjs ask\` for one-off jobs.`,
+      deny: `zhukov-pane: a Zhukov run is active, so every Agent call must set model "haiku" or "sonnet" (this one was ${e.model ? `"${e.model}"` : 'unset, which inherits Opus'}). Prefer \`zhukov.mjs ask\` for one-off jobs.`,
     }
   }).catch(($, e, next) => next(e))
 

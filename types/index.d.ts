@@ -20,6 +20,6 @@ export type ZhukovSnap = {
 
 declare module 'claude-code' {
   interface PluginState {
-    zhukov: { snap: ZhukovSnap | null; opusCalls: number; runKey: string }
+    'zhukov-pane': { snap: ZhukovSnap | null; opusCalls: number; runKey: string }
   }
 }

@@ -75,7 +75,7 @@ test('the pane draws the live graph on terminal and desktop', async ($, on) => {
   await boot($, fakeDisk(on, ACTIVE))
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui: any = await ($ as any).ui.mount({
-      plugin: 'zhukov', surface, component: 'Pane', requestId: 'zhukov',
+      plugin: 'zhukov-pane', surface, component: 'Pane', requestId: 'zhukov',
       props: { title: 'Zhukov', isFocused: false, bodyColumns: 60 },
     })
     expect(await ui.find({ type: 'Text', text: /Demo op/ })).toBeDefined()

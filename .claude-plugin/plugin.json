@@ -1,6 +1,6 @@
 {
- "name": "zhukov",
- "version": "0.2.0",
- "description": "Zhukov: cheap Haiku-soldier orchestration skill, plus a live pane, status line and Agent-model guard",
+ "name": "zhukov-pane",
+ "version": "0.3.0",
+ "description": "Live pane, status line and Agent-model guard for runs of the Zhukov skill",
  "types": "./types/index.d.ts"
 }
