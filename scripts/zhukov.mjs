@@ -406,8 +406,11 @@ function preview() {
   waves.forEach((w, i) => console.log(`  wave ${i + 1}: ${w.map((n) => `${n.id}[${n.tier[0]}${n.loadBearing ? '!' : ''}]`).join(', ')}`));
   const big = [...nodes].sort((a, b) => b.readTok - a.readTok)[0];
   console.log(`  largest soldier start: ${big.id} ~${big.readTok + HARNESS_TOKENS} tokens (line ${TIER_LINE})`);
-  const est = nodes.reduce((a, n) => a + (n.tier === 'sonnet' ? 0.25 : 0.015) * 3, 0);
-  console.log(`  rough soldier cost: ~$${(est * 0.6).toFixed(2)}–$${(est * 1.6).toFixed(2)} (calibrate from costs.jsonl)`);
+  // calibrated 2026-10-11 from live runs: a Haiku node (make + check) ≈ $0.004–0.005; a fix round adds about the same;
+  // Sonnet ≈ 15–20× Haiku. Low = no fixes; high = one fix round everywhere. Big reads push both up.
+  const per = (n) => (n.tier === 'sonnet' ? 0.08 : 0.005) * (1 + n.readTok / 40000);
+  const lo = nodes.reduce((a, n) => a + per(n), 0), hi = nodes.reduce((a, n) => a + per(n) * 2.2, 0);
+  console.log(`  est. soldier cost: ~$${lo.toFixed(3)}–$${hi.toFixed(3)} (calibrated from live runs; costs.jsonl has the truth)`);
   if (warns.length) console.log('warnings:\n- ' + warns.join('\n- '));
 }
 function draw(quiet) {

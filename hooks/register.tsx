@@ -117,7 +117,18 @@ const COLOR: Record<string, string> = {
 let lastSig = ''
 let openedFor = ''
 
+// Heartbeat: the Zhukov skill's Setup reads ~/.zhukov/pane-alive (epoch seconds) to know the pane is live.
+let lastBeat = 0
+async function heartbeat($: EngineInterface) {
+  const now = Math.floor(Date.now() / 1000)
+  if (now - lastBeat < 20) return
+  lastBeat = now
+  const home = await $.env.get('HOME')
+  if (home) await $.fs.write(`${home}/.zhukov/pane-alive`, `${now}\n`).catch(() => undefined)
+}
+
 async function poll($: EngineInterface) {
+  await heartbeat($)
   const s = await loadSnap($)
   const sig = JSON.stringify(s)
   if (sig === lastSig) return
